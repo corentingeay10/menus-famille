@@ -171,10 +171,10 @@ PAGE = """<!DOCTYPE html>
 :root { --bg:#f6f4ef; --card:#ffffff; --ink:#2b2b2b; --accent:#c2571b; --accent2:#2e7d5b; --line:#e3ded4; }
 * { box-sizing:border-box; }
 body { margin:0; font-family:-apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--ink); }
-header { background:var(--accent); color:#fff; padding:14px 16px; position:sticky; top:0; z-index:5; }
+header { background:var(--accent); color:#fff; padding:14px 16px; }
 header h1 { margin:0; font-size:1.15rem; }
-nav { display:flex; gap:4px; padding:8px 8px 0; background:var(--bg); position:sticky; top:52px; z-index:4; flex-wrap:wrap; }
-nav button { flex:1; min-width:70px; padding:10px 6px; border:1px solid var(--line); background:var(--card); border-radius:10px 10px 0 0; font-size:.95rem; cursor:pointer; }
+nav { display:flex; gap:4px; padding:8px 8px 0; background:var(--bg); flex-wrap:wrap; }
+nav button { flex:1; min-width:70px; padding:12px 6px; border:1px solid var(--line); background:var(--card); border-radius:10px 10px 0 0; font-size:.95rem; cursor:pointer; }
 nav button.active { background:var(--card); border-bottom-color:var(--card); font-weight:700; color:var(--accent); }
 main { padding:12px; max-width:760px; margin:0 auto 60px; }
 .tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:0 10px 10px 10px; padding:14px; }
@@ -209,10 +209,10 @@ footer { text-align:center; color:#999; font-size:.8rem; padding:16px; }
 <body>
 <header><h1>🍽️ Menus de la semaine — Famille</h1></header>
 <nav>
-<button data-tab="menu" class="active">Menu</button>
-<button data-tab="courses">Courses</button>
-<button data-tab="inventaire">Chez nous</button>
-<button data-tab="suggestions">Suggestions</button>
+<button type="button" data-tab="menu" class="active">Menu</button>
+<button type="button" data-tab="courses">Courses</button>
+<button type="button" data-tab="inventaire">Chez nous</button>
+<button type="button" data-tab="suggestions">Suggestions</button>
 </nav>
 <main>
 <section id="tab-menu" class="tab active"><h2>Menu de la semaine</h2><div id="menu"></div></section>
