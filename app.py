@@ -268,7 +268,7 @@ async function loadInventory() {
   const items = await api('/api/inventory');
   $('#list-inventory').innerHTML = items.length ? items.map(i => `
     <li><span class="name">${i.name}</span>
-    <button class="del" data-id="${i.id}" title="Supprimer">✕</button></li>`).join('') : '<p class="empty">Rien pour l'instant — ajoutez ce que vous avez.</p>';
+    <button class="del" data-id="${i.id}" title="Supprimer">✕</button></li>`).join('') : '<p class="empty">Rien pour l’instant — ajoutez ce que vous avez.</p>';
   document.querySelectorAll('#list-inventory .del').forEach(b => b.addEventListener('click', async () => { await api('/api/inventory/' + b.dataset.id, 'DELETE'); loadInventory(); }));
 }
 async function loadSuggestions() {
