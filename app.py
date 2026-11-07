@@ -101,6 +101,45 @@ RECIPES = [
     },
 ]
 
+QUANTITIES = {
+    "pates": ("250 g", "350 g"),
+    "viande hachee": ("300 g", "400 g"),
+    "sauce tomate": ("1 pot", "1 pot"),
+    "oignon": ("1", "1"),
+    "huile d'olive": ("", ""),
+    "pommes de terre": ("4", "6"),
+    "lait": ("25 cl", "40 cl"),
+    "beurre": ("20 g", "30 g"),
+    "jambon blanc": ("2 tranches", "3 tranches"),
+    "oeufs": ("4", "6"),
+    "fromage rape": ("50 g", "70 g"),
+    "carottes": ("3", "4"),
+    "courgette": ("1", "2"),
+    "riz": ("150 g", "220 g"),
+    "citron": ("1/2", "1/2"),
+    "creme fraiche": ("20 cl", "30 cl"),
+    "blanc de poulet": ("2 filets", "3 filets"),
+    "coquillettes": ("200 g", "300 g"),
+    "pates a lasagne": ("1 paquet", "1 paquet"),
+    "bechamel": ("50 cl", "70 cl"),
+    "pate brisee": ("1", "1"),
+    "saumon": ("2 paves", "3 paves"),
+    "epinards": ("200 g", "300 g"),
+    "aubergine": ("1", "1"),
+    "poivron": ("1", "2"),
+    "semoule": ("150 g", "220 g"),
+    "poireau": ("1", "2"),
+    "bouillon de legumes": ("1 cube", "1 cube"),
+}
+
+
+def qty_for(ingredient, persons):
+    entry = QUANTITIES.get(normalize(ingredient))
+    if not entry:
+        return ""
+    return entry[1] if persons == 3 else entry[0]
+
+
 DEFAULT_DATA = {
     "menu": {
         day: {meal: {"text": "", "persons": 2, "baby": ""} for meal in MEALS}
@@ -115,7 +154,8 @@ lock = threading.Lock()
 
 
 def normalize(text):
-    text = unicodedata.normalize("NFKD", text.lower())
+    text = text.lower().replace("œ", "oe").replace("æ", "ae")
+    text = unicodedata.normalize("NFKD", text)
     text = "".join(c for c in text if not unicodedata.combining(c))
     return re.sub(r"\s+", " ", text).strip()
 
@@ -178,7 +218,7 @@ def find_recipe(text, recipes):
     return None
 
 
-def add_missing_to_shopping(data, recipe):
+def add_missing_to_shopping(data, recipe, persons=2):
     names = [i["name"] for i in data["inventory"]]
     added = 0
     for ing in recipe["ingredients"]:
@@ -191,7 +231,12 @@ def add_missing_to_shopping(data, recipe):
                 listed = True
                 break
         if not listed:
-            data["shopping"].append({"id": uuid.uuid4().hex[:8], "name": ing, "checked": False})
+            data["shopping"].append({
+                "id": uuid.uuid4().hex[:8],
+                "name": ing,
+                "checked": False,
+                "qty": qty_for(ing, persons),
+            })
             added += 1
     return added
 
@@ -250,6 +295,7 @@ ul.items { list-style:none; margin:0; padding:0; }
 ul.items li { display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); font-size:1rem; }
 ul.items li .name { flex:1; }
 ul.items li.done .name { text-decoration:line-through; color:#999; }
+.qty { color:#888; font-size:.85rem; background:#f0ede6; border-radius:12px; padding:2px 10px; white-space:nowrap; }
 ul.items input[type=checkbox] { width:22px; height:22px; }
 button.del { border:none; background:none; color:#b00; font-size:1.1rem; cursor:pointer; padding:4px 8px; }
 .recipe { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:10px; }
@@ -377,6 +423,7 @@ async function loadShopping() {
     <li class="${i.checked ? 'done' : ''}">
       <input type="checkbox" ${i.checked ? 'checked' : ''} data-id="${i.id}">
       <span class="name">${i.name}</span>
+      ${i.qty ? `<span class="qty">${i.qty}</span>` : ''}
       <button class="del" data-id="${i.id}" title="Supprimer">✕</button>
     </li>`).join('') : '<p class="empty">Liste vide.</p>';
   document.querySelectorAll('#list-shopping input[type=checkbox]').forEach(c => c.addEventListener('change', () => api('/api/shopping/toggle', 'POST', { id: c.dataset.id })));
@@ -502,7 +549,7 @@ class Handler(BaseHTTPRequestHandler):
                         recipe = find_recipe(entry[field], all_recipes(data))
                         if recipe:
                             matched = recipe["name"]
-                            added = add_missing_to_shopping(data, recipe)
+                            added = add_missing_to_shopping(data, recipe, entry.get("persons", 2))
                     save_data(data)
                     self._json(200, {"ok": True, "matched": matched, "added": added})
                 else:
@@ -519,7 +566,7 @@ class Handler(BaseHTTPRequestHandler):
                             recipe = find_recipe(entry.get(field, ""), all_recipes(data))
                             if recipe:
                                 matched.append(recipe["name"])
-                                added += add_missing_to_shopping(data, recipe)
+                                added += add_missing_to_shopping(data, recipe, entry.get("persons", 2))
                 save_data(data)
                 self._json(200, {"added": added, "matched": matched})
             elif path == "/api/recipes":
@@ -540,7 +587,7 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/shopping":
                 name = (body.get("name") or "").strip()
                 if name:
-                    data["shopping"].append({"id": uuid.uuid4().hex[:8], "name": name, "checked": False})
+                    data["shopping"].append({"id": uuid.uuid4().hex[:8], "name": name, "checked": False, "qty": ""})
                     save_data(data)
                 self._json(200, data["shopping"])
             elif path == "/api/shopping/toggle":
@@ -570,7 +617,7 @@ class Handler(BaseHTTPRequestHandler):
                         normalize(ing) in normalize(s["name"]) or normalize(s["name"]) in normalize(ing)
                         for s in data["shopping"]
                     ):
-                        data["shopping"].append({"id": uuid.uuid4().hex[:8], "name": ing, "checked": False})
+                        data["shopping"].append({"id": uuid.uuid4().hex[:8], "name": ing, "checked": False, "qty": qty_for(ing, 2)})
                         added += 1
                 save_data(data)
                 self._json(200, {"added": added})
