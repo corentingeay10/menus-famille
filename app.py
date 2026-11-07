@@ -294,55 +294,64 @@ PAGE = """<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Menus de la semaine</title>
 <style>
-:root { --bg:#f6f4ef; --card:#ffffff; --ink:#2b2b2b; --accent:#c2571b; --accent2:#2e7d5b; --line:#e3ded4; }
+:root {
+  --bg1:#fff7ed; --bg2:#ffe4e6; --card:#ffffff; --ink:#3f3356; --muted:#8b8299;
+  --accent:#f97316; --accent-d:#ea580c; --accent2:#10b981;
+  --line:#f0e9df; --shadow:0 6px 18px rgba(63,51,86,.08);
+}
 * { box-sizing:border-box; }
-body { margin:0; font-family:-apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--ink); }
-header { background:var(--accent); color:#fff; padding:14px 16px; }
-header h1 { margin:0; font-size:1.15rem; }
-nav { display:flex; gap:4px; padding:8px 8px 0; background:var(--bg); flex-wrap:wrap; }
-nav button { flex:1; min-width:70px; padding:12px 6px; border:1px solid var(--line); background:var(--card); border-radius:10px 10px 0 0; font-size:.95rem; cursor:pointer; }
-nav button.active { background:var(--card); border-bottom-color:var(--card); font-weight:700; color:var(--accent); }
-main { padding:12px; max-width:760px; margin:0 auto 60px; }
-.tab { display:none; background:var(--card); border:1px solid var(--line); border-radius:0 10px 10px 10px; padding:14px; }
+body { margin:0; font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif; background:linear-gradient(160deg,var(--bg1),var(--bg2)); color:var(--ink); min-height:100vh; }
+header { background:linear-gradient(90deg,#f97316,#ec4899); color:#fff; padding:16px; text-align:center; box-shadow:0 4px 14px rgba(236,72,153,.25); }
+header h1 { margin:0; font-size:1.3rem; letter-spacing:.5px; }
+nav { display:flex; gap:6px; padding:12px 10px 0; max-width:760px; margin:0 auto; flex-wrap:wrap; }
+nav button { flex:1; min-width:72px; padding:12px 6px; border:none; background:rgba(255,255,255,.75); border-radius:14px 14px 0 0; font-size:.95rem; cursor:pointer; color:var(--muted); font-weight:700; transition:all .15s; }
+nav button:hover { background:#fff; }
+nav button.active { background:var(--card); color:var(--accent-d); box-shadow:var(--shadow); }
+main { padding:0 10px 60px; max-width:760px; margin:0 auto; }
+.tab { display:none; background:var(--card); border-radius:0 16px 16px 16px; padding:16px; box-shadow:var(--shadow); }
 .tab.active { display:block; }
-h2 { margin:4px 0 12px; font-size:1.05rem; }
-.day { border-bottom:1px solid var(--line); padding:8px 0; }
-.day b { text-transform:capitalize; display:block; margin-bottom:6px; }
-.meal-row { display:flex; align-items:center; gap:8px; margin:4px 0; }
-.meal-row label { width:44px; font-size:.9rem; color:#666; }
-.meal-row input { flex:1; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:1rem; }
+h2 { margin:2px 0 14px; font-size:1.1rem; }
+.day { background:#fdfbf7; border:1px solid var(--line); border-radius:14px; padding:10px 12px; margin-bottom:10px; }
+.day b { text-transform:capitalize; display:block; margin-bottom:6px; color:var(--accent-d); }
+.meal-row { display:flex; align-items:center; gap:8px; margin:6px 0; }
+.meal-row label { width:44px; font-size:.9rem; color:var(--muted); font-weight:700; }
+.meal-row input, .meal-row select { flex:1; padding:11px; border:2px solid var(--line); border-radius:12px; font-size:1rem; background:#fff; font-family:inherit; }
+.meal-row input:focus, .meal-row select:focus { outline:none; border-color:var(--accent); }
+form.add { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+form.add input { flex:1; min-width:140px; padding:11px; border:2px solid var(--line); border-radius:12px; font-size:1rem; font-family:inherit; }
+form.add input:focus { outline:none; border-color:var(--accent); }
+button.action { padding:11px 16px; border:none; border-radius:999px; background:linear-gradient(90deg,var(--accent),#ec4899); color:#fff; font-size:1rem; font-weight:700; cursor:pointer; transition:transform .1s; white-space:nowrap; }
+button.action:hover { transform:translateY(-1px); }
+button.action.secondary { background:linear-gradient(90deg,var(--accent2),#0ea5e9); }
 .seg { display:flex; gap:6px; }
-.seg button { padding:9px 14px; border:1px solid var(--line); background:#fff; border-radius:8px; font-size:.9rem; cursor:pointer; }
-.seg button.on { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; }
-form.add { display:flex; gap:8px; margin-bottom:12px; }
-form.add input { flex:1; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:1rem; }
-button.action { padding:10px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-size:1rem; cursor:pointer; white-space:nowrap; }
-button.action.secondary { background:var(--accent2); }
+.seg button { padding:9px 14px; border:2px solid var(--line); background:#fff; border-radius:999px; font-size:.9rem; cursor:pointer; font-weight:700; color:var(--muted); }
+.seg button.on { background:var(--accent2); border-color:var(--accent2); color:#fff; }
 ul.items { list-style:none; margin:0; padding:0; }
-ul.items li { display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); font-size:1rem; }
+ul.items li { display:flex; align-items:center; gap:10px; padding:11px 6px; border-bottom:1px dashed var(--line); font-size:1rem; }
+ul.items li:last-child { border-bottom:none; }
 ul.items li .name { flex:1; }
-ul.items li.done .name { text-decoration:line-through; color:#999; }
-.qty { color:#888; font-size:.85rem; background:#f0ede6; border-radius:12px; padding:2px 10px; white-space:nowrap; }
-ul.items input[type=checkbox] { width:22px; height:22px; }
-button.del { border:none; background:none; color:#b00; font-size:1.1rem; cursor:pointer; padding:4px 8px; }
-.recipe { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:10px; }
+ul.items li.done .name { text-decoration:line-through; color:var(--muted); }
+ul.items input[type=checkbox] { width:22px; height:22px; accent-color:var(--accent); }
+button.del { border:none; background:#fee2e2; color:#dc2626; font-size:.9rem; font-weight:700; cursor:pointer; padding:6px 10px; border-radius:999px; }
+.recipe { border:1px solid var(--line); background:#fdfbf7; border-radius:14px; padding:12px 14px; margin-bottom:10px; }
 .recipe h3 { margin:0 0 4px; font-size:1rem; }
-.badge { display:inline-block; font-size:.72rem; background:#e7f3ec; color:var(--accent2); border-radius:20px; padding:2px 8px; margin-left:6px; vertical-align:middle; }
-.badge.missing { background:#fdecea; color:#b00; }
-.recipe p { margin:6px 0; font-size:.9rem; color:#444; }
-.recipe .missing-list { color:#b00; font-size:.9rem; }
+.badge { display:inline-block; font-size:.72rem; background:#d1fae5; color:#047857; border-radius:999px; padding:3px 10px; margin-left:6px; vertical-align:middle; font-weight:700; }
+.badge.missing { background:#fee2e2; color:#dc2626; }
+.recipe p { margin:6px 0; font-size:.9rem; color:var(--muted); }
+.recipe .missing-list { color:#dc2626; }
 .recipe button { margin-top:6px; }
-.empty { color:#888; font-style:italic; padding:8px 0; }
-footer { text-align:center; color:#999; font-size:.8rem; padding:16px; }
+.qty { color:#b45309; font-size:.85rem; background:#fff3e0; border-radius:999px; padding:3px 10px; white-space:nowrap; font-weight:700; }
+.empty { color:var(--muted); font-style:italic; padding:8px 0; }
+footer { text-align:center; color:var(--muted); font-size:.8rem; padding:16px; }
 </style>
 </head>
 <body>
-<header><h1>🍽️ Menus de la semaine — Famille</h1></header>
+<header><h1>🍽️ Nos menus en famille</h1></header>
 <nav>
-<button type="button" data-tab="menu" class="active">Menu</button>
-<button type="button" data-tab="courses">Courses</button>
-<button type="button" data-tab="inventaire">Chez nous</button>
-<button type="button" data-tab="suggestions">Suggestions</button>
+<button type="button" data-tab="menu" class="active">📅 Menu</button>
+<button type="button" data-tab="courses">🛒 Courses</button>
+<button type="button" data-tab="inventaire">🏠 Chez nous</button>
+<button type="button" data-tab="suggestions">💡 Suggestions</button>
 </nav>
 <main>
 <section id="tab-menu" class="tab active"><h2>Menu de la semaine</h2><div id="menu"></div><p id="menu-status" class="empty"></p></section>
