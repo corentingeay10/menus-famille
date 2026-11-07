@@ -102,7 +102,10 @@ RECIPES = [
 ]
 
 DEFAULT_DATA = {
-    "menu": {day: {meal: "" for meal in MEALS} for day in DAYS},
+    "menu": {
+        day: {meal: {"text": "", "persons": 2, "baby": ""} for meal in MEALS}
+        for day in DAYS
+    },
     "shopping": [],
     "inventory": [],
 }
@@ -123,6 +126,14 @@ def load_data():
         data = json.load(f)
     for key, default in DEFAULT_DATA.items():
         data.setdefault(key, json.loads(json.dumps(default)))
+    for day in DAYS:
+        data["menu"].setdefault(day, {})
+        for meal in MEALS:
+            entry = data["menu"][day].get(meal)
+            if isinstance(entry, str):
+                data["menu"][day][meal] = {"text": entry, "persons": 2, "baby": ""}
+            elif not isinstance(entry, dict):
+                data["menu"][day][meal] = {"text": "", "persons": 2, "baby": ""}
     return data
 
 
@@ -185,6 +196,9 @@ h2 { margin:4px 0 12px; font-size:1.05rem; }
 .meal-row { display:flex; align-items:center; gap:8px; margin:4px 0; }
 .meal-row label { width:44px; font-size:.9rem; color:#666; }
 .meal-row input { flex:1; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:1rem; }
+.seg { display:flex; gap:6px; }
+.seg button { padding:9px 14px; border:1px solid var(--line); background:#fff; border-radius:8px; font-size:.9rem; cursor:pointer; }
+.seg button.on { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; }
 form.add { display:flex; gap:8px; margin-bottom:12px; }
 form.add input { flex:1; padding:10px; border:1px solid var(--line); border-radius:8px; font-size:1rem; }
 button.action { padding:10px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-size:1rem; cursor:pointer; white-space:nowrap; }
@@ -240,17 +254,33 @@ async function api(path, method, body) {
     body: body ? JSON.stringify(body) : undefined });
   return res.json();
 }
+function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
 async function loadMenu() {
   const menu = await api('/api/menu');
   const days = Object.keys(menu);
   $('#menu').innerHTML = days.map(d => `
     <div class="day"><b>${d}</b>
-      ${['midi','soir'].map(m => `
+      ${['midi','soir'].map(m => {
+        const e = menu[d][m] || {};
+        const persons = e.persons === 3 ? 3 : 2;
+        return `
         <div class="meal-row"><label>${m}</label>
-        <input data-day="${d}" data-meal="${m}" value="${(menu[d][m]||'').replace(/"/g,'&quot;')}" placeholder="Repas ${m}…"></div>`).join('')}
+        <input data-day="${d}" data-meal="${m}" data-field="text" value="${esc(e.text)}" placeholder="Repas ${m}…"></div>
+        <div class="meal-row"><label></label>
+          <div class="seg">
+            <button type="button" data-day="${d}" data-meal="${m}" data-persons="2" class="${persons === 2 ? 'on' : ''}">2 pers.</button>
+            <button type="button" data-day="${d}" data-meal="${m}" data-persons="3" class="${persons === 3 ? 'on' : ''}">3 (avec bébé)</button>
+          </div></div>
+        ${persons === 3 ? `<div class="meal-row"><label>bébé</label>
+        <input data-day="${d}" data-meal="${m}" data-field="baby" value="${esc(e.baby)}" placeholder="Repas bébé…"></div>` : ''}`;
+      }).join('')}
     </div>`).join('');
   document.querySelectorAll('#menu input').forEach(i => i.addEventListener('change', async (e) => {
-    await api('/api/menu', 'POST', { day: e.target.dataset.day, meal: e.target.dataset.meal, value: e.target.value });
+    await api('/api/menu', 'POST', { day: e.target.dataset.day, meal: e.target.dataset.meal, field: e.target.dataset.field, value: e.target.value });
+  }));
+  document.querySelectorAll('#menu .seg button').forEach(b => b.addEventListener('click', async (e) => {
+    await api('/api/menu', 'POST', { day: e.target.dataset.day, meal: e.target.dataset.meal, field: 'persons', value: e.target.dataset.persons });
+    loadMenu();
   }));
 }
 async function loadShopping() {
@@ -340,9 +370,17 @@ class Handler(BaseHTTPRequestHandler):
         with lock:
             data = load_data()
             if path == "/api/menu":
-                day, meal, value = body.get("day"), body.get("meal"), body.get("value", "")
+                day, meal = body.get("day"), body.get("meal")
                 if day in data["menu"] and meal in data["menu"][day]:
-                    data["menu"][day][meal] = value
+                    entry = data["menu"][day][meal]
+                    if not isinstance(entry, dict):
+                        entry = {"text": "", "persons": 2, "baby": ""}
+                        data["menu"][day][meal] = entry
+                    field = body.get("field", "text")
+                    if field == "persons":
+                        entry["persons"] = 3 if str(body.get("value")) == "3" else 2
+                    elif field in ("text", "baby"):
+                        entry[field] = str(body.get("value", ""))
                     save_data(data)
                     self._json(200, {"ok": True})
                 else:
