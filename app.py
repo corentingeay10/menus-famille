@@ -309,16 +309,25 @@ async function api(path, method, body) {
 }
 function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
 async function loadMenu() {
-  const menu = await api('/api/menu');
-  const days = Object.keys(menu);
-  $('#menu').innerHTML = days.map(d => `
+  const [menu, recipes] = await Promise.all([api('/api/menu'), api('/api/recipes/all')]);
+  const names = recipes.map(r => r.name);
+  $('#menu').innerHTML = Object.keys(menu).map(d => `
     <div class="day"><b>${d}</b>
       ${['midi','soir'].map(m => {
         const e = menu[d][m] || {};
         const persons = e.persons === 3 ? 3 : 2;
+        const txt = e.text || '';
+        const known = names.includes(txt);
+        const selVal = txt === '' ? '' : (known ? txt : '__custom__');
         return `
         <div class="meal-row"><label>${m}</label>
-        <input data-day="${d}" data-meal="${m}" data-field="text" value="${esc(e.text)}" placeholder="Repas ${m}…"></div>
+          <select data-day="${d}" data-meal="${m}" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:1rem">
+            <option value="">— Choisir un repas —</option>
+            ${recipes.map(r => `<option value="${esc(r.name)}" ${selVal === r.name ? 'selected' : ''}>${esc(r.name)}${r.child_friendly ? ' 👶' : ''}</option>`).join('')}
+            <option value="__custom__" ${selVal === '__custom__' ? 'selected' : ''}>✏️ Autre (texte libre)</option>
+          </select>
+          <input data-day="${d}" data-meal="${m}" data-field="text" value="${esc(txt)}" placeholder="Repas ${m}…" style="${(known || txt === '') ? 'display:none' : 'flex:1'}">
+        </div>
         <div class="meal-row"><label></label>
           <div class="seg">
             <button type="button" data-day="${d}" data-meal="${m}" data-persons="2" class="${persons === 2 ? 'on' : ''}">2 pers.</button>
@@ -328,6 +337,24 @@ async function loadMenu() {
         <input data-day="${d}" data-meal="${m}" data-field="baby" value="${esc(e.baby)}" placeholder="Repas bébé…"></div>` : ''}`;
       }).join('')}
     </div>`).join('');
+  document.querySelectorAll('#menu select').forEach(s => s.addEventListener('change', async (e) => {
+    const row = e.target.closest('.meal-row');
+    const input = row ? row.querySelector('input[data-field="text"]') : null;
+    if (e.target.value === '__custom__') {
+      if (input) { input.style.display = 'flex'; input.focus(); }
+      return;
+    }
+    if (input) input.style.display = 'none';
+    const r = await api('/api/menu', 'POST', { day: e.target.dataset.day, meal: e.target.dataset.meal, field: 'text', value: e.target.value });
+    const st = $('#menu-status');
+    if (r.matched) {
+      st.textContent = r.added > 0
+        ? `« ${r.matched} » — ${r.added} ingrédient(s) ajouté(s) aux courses.`
+        : `« ${r.matched} » — tout est déjà en stock ou listé.`;
+    } else {
+      st.textContent = '';
+    }
+  }));
   document.querySelectorAll('#menu input').forEach(i => i.addEventListener('change', async (e) => {
     const r = await api('/api/menu', 'POST', { day: e.target.dataset.day, meal: e.target.dataset.meal, field: e.target.dataset.field, value: e.target.value });
     const st = $('#menu-status');
@@ -335,7 +362,7 @@ async function loadMenu() {
       st.textContent = r.added > 0
         ? `Recette « ${r.matched} » reconnue — ${r.added} ingrédient(s) ajouté(s) aux courses.`
         : `Recette « ${r.matched} » reconnue — tout est déjà en stock ou listé.`;
-    } else {
+    } else if (e.target.dataset.field === 'text') {
       st.textContent = '';
     }
   }));
@@ -446,6 +473,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, data["inventory"])
         elif path == "/api/suggestions":
             self._json(200, suggestions([i["name"] for i in data["inventory"]], data))
+        elif path == "/api/recipes/all":
+            self._json(200, all_recipes(data))
         elif path == "/api/recipes":
             self._json(200, data["recipes"])
         else:

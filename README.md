@@ -2,7 +2,7 @@
 
 App web minimale, sans aucune dépendance externe (Python 3 standard uniquement), pour :
 
-- planifier les **menus de la semaine** (midi / soir, lundi → dimanche) ;
+- planifier les **menus de la semaine** (midi / soir, lundi → dimanche) via une **liste déroulante des recettes** (intégrées + perso) — la sélection met à jour automatiquement la liste de courses ;
 - gérer la **liste de courses** (ajouter, cocher, supprimer) ;
 - lister **ce qu'on a déjà à la maison** (inventaire) ;
 - indiquer pour chaque repas si on est **2 ou 3 (avec bébé)** à manger, avec un champ « repas bébé » quand on est 3 ;
@@ -43,6 +43,7 @@ puis ouvrir sur iPad/iPhone : `http://192.168.1.42:8000`.
 | GET | `/api/menu` | Lire le menu |
 | POST | `/api/menu` | `{day, meal, field, value}` : `field` = `text` (repas), `persons` (`2` ou `3`, 3 = avec bébé) ou `baby` (repas bébé). Si le texte correspond à une recette connue, ses ingrédients manquants sont ajoutés aux courses |
 | POST | `/api/menu/sync-shopping` | Ajoute aux courses les ingrédients de toutes les recettes reconnues dans le menu (hors inventaire) |
+| GET | `/api/recipes/all` | Toutes les recettes (intégrées + perso) pour la liste déroulante du menu |
 | GET / POST | `/api/recipes` | Lire / ajouter une recette perso `{name, ingredients, child_friendly}` |
 | DELETE | `/api/recipes/{id}` | Supprimer une recette perso |
 | GET / POST | `/api/shopping` | Lire / ajouter un article |
