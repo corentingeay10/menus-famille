@@ -93,6 +93,19 @@ RECIPES = [
         "instructions": "Faire mijoter les légumes coupés en dés avec la sauce tomate, servir avec la semoule.",
     },
     {
+        "id": "tartiflette",
+        "name": "Tartiflette",
+        "child_friendly": False,
+        "ingredients": [
+            {"name": "pommes de terre", "qty2": "500 g", "qty3": "700 g"},
+            {"name": "lardons", "qty2": "150 g", "qty3": "200 g"},
+            {"name": "oignon", "qty2": "1", "qty3": "1"},
+            {"name": "reblochon", "qty2": "1/2", "qty3": "1/2"},
+            {"name": "crème fraîche", "qty2": "10 cl", "qty3": "15 cl"},
+        ],
+        "instructions": "Cuire les pommes de terre, faire revenir l'oignon et les lardons, disposer dans un plat, verser la crème, couvrir de reblochon coupé, enfourner 20-25 min à 200 °C.",
+    },
+    {
         "id": "hachis-parmentier",
         "name": "Hachis Parmentier",
         "child_friendly": True,
@@ -130,10 +143,18 @@ QUANTITIES = {
     "semoule": ("150 g", "220 g"),
     "poireau": ("1", "2"),
     "bouillon de legumes": ("1 cube", "1 cube"),
+    "lardons": ("150 g", "200 g"),
+    "reblochon": ("1/2", "1/2"),
 }
 
 
+def ing_name(ing):
+    return ing["name"] if isinstance(ing, dict) else ing
+
+
 def qty_for(ingredient, persons):
+    if isinstance(ingredient, dict):
+        return ingredient.get("qty3" if persons == 3 else "qty2", "")
     entry = QUANTITIES.get(normalize(ingredient))
     if not entry:
         return ""
@@ -222,18 +243,19 @@ def add_missing_to_shopping(data, recipe, persons=2):
     names = [i["name"] for i in data["inventory"]]
     added = 0
     for ing in recipe["ingredients"]:
-        if has_ingredient(names, ing):
+        name = ing_name(ing)
+        if has_ingredient(names, name):
             continue
         listed = False
         for s in data["shopping"]:
-            a, b = normalize(ing), normalize(s["name"])
+            a, b = normalize(name), normalize(s["name"])
             if a == b or a in b or b in a:
                 listed = True
                 break
         if not listed:
             data["shopping"].append({
                 "id": uuid.uuid4().hex[:8],
-                "name": ing,
+                "name": name,
                 "checked": False,
                 "qty": qty_for(ing, persons),
             })
@@ -244,13 +266,13 @@ def add_missing_to_shopping(data, recipe, persons=2):
 def suggestions(inventory_names, data=None):
     result = []
     for recipe in all_recipes(data or {"recipes": []}):
-        missing = [i for i in recipe["ingredients"] if not has_ingredient(inventory_names, i)]
+        missing = [ing_name(i) for i in recipe["ingredients"] if not has_ingredient(inventory_names, ing_name(i))]
         result.append(
             {
                 "id": recipe["id"],
                 "name": recipe["name"],
                 "child_friendly": recipe["child_friendly"],
-                "ingredients": recipe["ingredients"],
+                "ingredients": [ing_name(i) for i in recipe["ingredients"]],
                 "missing": missing,
                 "missing_count": len(missing),
                 "instructions": recipe["instructions"],
@@ -613,11 +635,12 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 added = 0
                 for ing in recipe["ingredients"]:
-                    if not has_ingredient(names, ing) and not any(
-                        normalize(ing) in normalize(s["name"]) or normalize(s["name"]) in normalize(ing)
+                    name = ing_name(ing)
+                    if not has_ingredient(names, name) and not any(
+                        normalize(name) in normalize(s["name"]) or normalize(s["name"]) in normalize(name)
                         for s in data["shopping"]
                     ):
-                        data["shopping"].append({"id": uuid.uuid4().hex[:8], "name": ing, "checked": False, "qty": qty_for(ing, 2)})
+                        data["shopping"].append({"id": uuid.uuid4().hex[:8], "name": name, "checked": False, "qty": qty_for(ing, 2)})
                         added += 1
                 save_data(data)
                 self._json(200, {"added": added})
