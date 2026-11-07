@@ -10,7 +10,8 @@ App web minimale, sans aucune dépendance externe (Python 3 standard uniquement)
   (textures molles, morceaux adaptés, peu salé) et possibilité d'ajouter d'un clic
   les ingrédients manquants à la liste de courses ;
 - **générer automatiquement la liste de courses depuis le menu** : les ingrédients des
-  recettes reconnues dans les menus sont ajoutés, sauf s'ils sont déjà dans « Chez nous » ;
+  recettes reconnues dans les menus sont ajoutés, sauf s'ils sont déjà dans « Chez nous »,
+  avec une **quantité adaptée à 2 ou 3 personnes** (selon le réglage « avec bébé » du repas) ;
 - **ajouter ses propres recettes** (onglet Suggestions), en plus des recettes de base intégrées.
 
 Les données sont stockées dans `data.json` (créé automatiquement au premier lancement).
