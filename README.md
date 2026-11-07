@@ -12,6 +12,8 @@ App web minimale, sans aucune dépendance externe (Python 3 standard uniquement)
 - **générer automatiquement la liste de courses depuis le menu** : les ingrédients des
   recettes reconnues dans les menus sont ajoutés, sauf s'ils sont déjà dans « Chez nous »,
   avec une **quantité adaptée à 2 ou 3 personnes** (selon le réglage « avec bébé » du repas) ;
+- la liste de courses se **met à jour avec « Chez nous »** : ajouter un ingrédient à l'inventaire
+  le retire des courses, et « Générer depuis le menu » nettoie aussi les articles désormais en stock ;
 - **ajouter ses propres recettes** (onglet Suggestions), en plus des recettes de base intégrées.
 
 Les données sont stockées dans `data.json` (créé automatiquement au premier lancement).

@@ -206,6 +206,11 @@ def save_data(data):
     os.replace(tmp, DATA_FILE)
 
 
+def items_match(a, b):
+    x, y = normalize(a), normalize(b)
+    return x == y or x in y or y in x
+
+
 def has_ingredient(inventory_names, ingredient):
     target = normalize(ingredient)
     for item in inventory_names:
@@ -475,9 +480,10 @@ async function loadSuggestions() {
 $('#form-shopping').addEventListener('submit', async (e) => { e.preventDefault(); await api('/api/shopping', 'POST', { name: $('#input-shopping').value }); $('#input-shopping').value=''; loadShopping(); });
 $('#sync-shopping').addEventListener('click', async () => {
   const r = await api('/api/menu/sync-shopping', 'POST', {});
-  $('#sync-status').textContent = r.added > 0
-    ? `+${r.added} article(s) ajouté(s) depuis le menu (${r.matched.length} recette(s) reconnue(s)).`
-    : 'Rien à ajouter : tout est déjà en stock ou listé.';
+  const parts = [];
+  if (r.added > 0) parts.push(`+${r.added} article(s) ajouté(s) depuis le menu (${r.matched.length} recette(s) reconnue(s))`);
+  if (r.removed > 0) parts.push(`−${r.removed} article(s) retiré(s) car déjà en stock`);
+  $('#sync-status').textContent = parts.length ? parts.join('. ') + '.' : 'Rien à ajouter : tout est déjà en stock ou listé.';
   loadShopping();
 });
 $('#form-recipe').addEventListener('submit', async (e) => {
@@ -497,7 +503,7 @@ async function loadRecipes() {
     <button class="del" data-id="${r.id}" title="Supprimer">✕</button></li>`).join('') : '';
   document.querySelectorAll('#list-recipes .del').forEach(b => b.addEventListener('click', async () => { await api('/api/recipes/' + b.dataset.id, 'DELETE'); loadRecipes(); loadSuggestions(); }));
 }
-$('#form-inventory').addEventListener('submit', async (e) => { e.preventDefault(); await api('/api/inventory', 'POST', { name: $('#input-inventory').value }); $('#input-inventory').value=''; loadInventory(); });
+$('#form-inventory').addEventListener('submit', async (e) => { e.preventDefault(); await api('/api/inventory', 'POST', { name: $('#input-inventory').value }); $('#input-inventory').value=''; loadInventory(); loadShopping(); });
 loadMenu(); loadShopping(); loadInventory();
 </script>
 </body>
@@ -589,8 +595,15 @@ class Handler(BaseHTTPRequestHandler):
                             if recipe:
                                 matched.append(recipe["name"])
                                 added += add_missing_to_shopping(data, recipe, entry.get("persons", 2))
+                inv_names = [i["name"] for i in data["inventory"]]
+                before = len(data["shopping"])
+                data["shopping"] = [
+                    s for s in data["shopping"]
+                    if not any(items_match(s["name"], n) for n in inv_names)
+                ]
+                removed = before - len(data["shopping"])
                 save_data(data)
-                self._json(200, {"added": added, "matched": matched})
+                self._json(200, {"added": added, "removed": removed, "matched": matched})
             elif path == "/api/recipes":
                 name = (body.get("name") or "").strip()
                 ingredients = body.get("ingredients") or []
@@ -622,8 +635,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(404, {"error": "not found"})
             elif path == "/api/inventory":
                 name = (body.get("name") or "").strip()
+                removed = 0
                 if name:
                     data["inventory"].append({"id": uuid.uuid4().hex[:8], "name": name})
+                    before = len(data["shopping"])
+                    data["shopping"] = [s for s in data["shopping"] if not items_match(s["name"], name)]
+                    removed = before - len(data["shopping"])
                     save_data(data)
                 self._json(200, data["inventory"])
             elif path.startswith("/api/suggestions/") and path.endswith("/add-missing"):
