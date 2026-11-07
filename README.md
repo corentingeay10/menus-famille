@@ -37,7 +37,7 @@ puis ouvrir sur iPad/iPhone : `http://192.168.1.42:8000`.
 | Méthode | Chemin | Rôle |
 |---|---|---|
 | GET | `/api/menu` | Lire le menu |
-| POST | `/api/menu` | `{day, meal, value}` : définir un repas |
+| POST | `/api/menu` | `{day, meal, field, value}` : `field` = `text` (repas), `persons` (`2` ou `3`, 3 = avec bébé) ou `baby` (repas bébé) |
 | GET / POST | `/api/shopping` | Lire / ajouter un article |
 | POST | `/api/shopping/toggle` | `{id}` : cocher/décocher |
 | DELETE | `/api/shopping/{id}` | Supprimer un article |
