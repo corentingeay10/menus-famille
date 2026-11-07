@@ -108,6 +108,7 @@ DEFAULT_DATA = {
     },
     "shopping": [],
     "inventory": [],
+    "recipes": [],
 }
 
 lock = threading.Lock()
@@ -153,9 +154,51 @@ def has_ingredient(inventory_names, ingredient):
     return False
 
 
-def suggestions(inventory_names):
+def all_recipes(data):
+    return RECIPES + data.get("recipes", [])
+
+
+def tokens(text):
+    return [t for t in re.split(r"[^a-z0-9]+", normalize(text)) if len(t) >= 3]
+
+
+def find_recipe(text, recipes):
+    t = normalize(text)
+    if not t:
+        return None
+    for r in recipes:
+        rn = normalize(r["name"])
+        if t == rn or t in rn or rn in t:
+            return r
+    tt = set(tokens(text))
+    if tt:
+        for r in recipes:
+            if tt.issubset(set(tokens(r["name"]))):
+                return r
+    return None
+
+
+def add_missing_to_shopping(data, recipe):
+    names = [i["name"] for i in data["inventory"]]
+    added = 0
+    for ing in recipe["ingredients"]:
+        if has_ingredient(names, ing):
+            continue
+        listed = False
+        for s in data["shopping"]:
+            a, b = normalize(ing), normalize(s["name"])
+            if a == b or a in b or b in a:
+                listed = True
+                break
+        if not listed:
+            data["shopping"].append({"id": uuid.uuid4().hex[:8], "name": ing, "checked": False})
+            added += 1
+    return added
+
+
+def suggestions(inventory_names, data=None):
     result = []
-    for recipe in RECIPES:
+    for recipe in all_recipes(data or {"recipes": []}):
         missing = [i for i in recipe["ingredients"] if not has_ingredient(inventory_names, i)]
         result.append(
             {
@@ -229,14 +272,24 @@ footer { text-align:center; color:#999; font-size:.8rem; padding:16px; }
 <button type="button" data-tab="suggestions">Suggestions</button>
 </nav>
 <main>
-<section id="tab-menu" class="tab active"><h2>Menu de la semaine</h2><div id="menu"></div></section>
+<section id="tab-menu" class="tab active"><h2>Menu de la semaine</h2><div id="menu"></div><p id="menu-status" class="empty"></p></section>
 <section id="tab-courses" class="tab"><h2>Liste de courses</h2>
 <form class="add" id="form-shopping"><input id="input-shopping" placeholder="Ajouter un article…" required><button class="action" type="submit">Ajouter</button></form>
+<button type="button" class="action secondary" id="sync-shopping">🔄 Générer depuis le menu</button>
+<p id="sync-status" class="empty"></p>
 <ul class="items" id="list-shopping"></ul></section>
 <section id="tab-inventaire" class="tab"><h2>Ce qu'on a déjà à la maison</h2>
 <form class="add" id="form-inventory"><input id="input-inventory" placeholder="Ex : œufs, pâtes, lait…" required><button class="action" type="submit">Ajouter</button></form>
 <ul class="items" id="list-inventory"></ul></section>
-<section id="tab-suggestions" class="tab"><h2>Idées de repas selon ce qu'on a</h2><div id="suggestions"></div></section>
+<section id="tab-suggestions" class="tab"><h2>Idées de repas selon ce qu’on a</h2>
+<form class="add" id="form-recipe" style="flex-wrap:wrap">
+<input id="recipe-name" placeholder="Nom de la recette" required>
+<input id="recipe-ingredients" placeholder="Ingrédients séparés par des virgules" required style="flex:2">
+<label style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input type="checkbox" id="recipe-child" style="width:18px;height:18px"> 👶 18 mois</label>
+<button class="action" type="submit">Ajouter</button>
+</form>
+<ul class="items" id="list-recipes"></ul>
+<div id="suggestions"></div></section>
 </main>
 <footer>Application familiale locale — données stockées sur cet appareil.</footer>
 <script>
@@ -246,7 +299,7 @@ document.querySelectorAll('nav button').forEach(b => b.addEventListener('click',
   document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
   b.classList.add('active');
   $('#tab-' + b.dataset.tab).classList.add('active');
-  if (b.dataset.tab === 'suggestions') loadSuggestions();
+  if (b.dataset.tab === 'suggestions') { loadSuggestions(); loadRecipes(); }
 }));
 async function api(path, method, body) {
   const res = await fetch(path, { method: method || 'GET',
@@ -276,7 +329,15 @@ async function loadMenu() {
       }).join('')}
     </div>`).join('');
   document.querySelectorAll('#menu input').forEach(i => i.addEventListener('change', async (e) => {
-    await api('/api/menu', 'POST', { day: e.target.dataset.day, meal: e.target.dataset.meal, field: e.target.dataset.field, value: e.target.value });
+    const r = await api('/api/menu', 'POST', { day: e.target.dataset.day, meal: e.target.dataset.meal, field: e.target.dataset.field, value: e.target.value });
+    const st = $('#menu-status');
+    if (r.matched) {
+      st.textContent = r.added > 0
+        ? `Recette « ${r.matched} » reconnue — ${r.added} ingrédient(s) ajouté(s) aux courses.`
+        : `Recette « ${r.matched} » reconnue — tout est déjà en stock ou listé.`;
+    } else {
+      st.textContent = '';
+    }
   }));
   document.querySelectorAll('#menu .seg button').forEach(b => b.addEventListener('click', async (e) => {
     await api('/api/menu', 'POST', { day: e.target.dataset.day, meal: e.target.dataset.meal, field: 'persons', value: e.target.dataset.persons });
@@ -316,6 +377,30 @@ async function loadSuggestions() {
   }));
 }
 $('#form-shopping').addEventListener('submit', async (e) => { e.preventDefault(); await api('/api/shopping', 'POST', { name: $('#input-shopping').value }); $('#input-shopping').value=''; loadShopping(); });
+$('#sync-shopping').addEventListener('click', async () => {
+  const r = await api('/api/menu/sync-shopping', 'POST', {});
+  $('#sync-status').textContent = r.added > 0
+    ? `+${r.added} article(s) ajouté(s) depuis le menu (${r.matched.length} recette(s) reconnue(s)).`
+    : 'Rien à ajouter : tout est déjà en stock ou listé.';
+  loadShopping();
+});
+$('#form-recipe').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await api('/api/recipes', 'POST', {
+    name: $('#recipe-name').value,
+    ingredients: $('#recipe-ingredients').value,
+    child_friendly: $('#recipe-child').checked,
+  });
+  $('#recipe-name').value = ''; $('#recipe-ingredients').value = ''; $('#recipe-child').checked = false;
+  loadRecipes(); loadSuggestions();
+});
+async function loadRecipes() {
+  const items = await api('/api/recipes');
+  $('#list-recipes').innerHTML = items.length ? items.map(r => `
+    <li><span class="name">${r.name} ${r.child_friendly ? '<span class="badge">👶 adapté 18 mois</span>' : ''}<br><small style="color:#777">${r.ingredients.join(', ')}</small></span>
+    <button class="del" data-id="${r.id}" title="Supprimer">✕</button></li>`).join('') : '';
+  document.querySelectorAll('#list-recipes .del').forEach(b => b.addEventListener('click', async () => { await api('/api/recipes/' + b.dataset.id, 'DELETE'); loadRecipes(); loadSuggestions(); }));
+}
 $('#form-inventory').addEventListener('submit', async (e) => { e.preventDefault(); await api('/api/inventory', 'POST', { name: $('#input-inventory').value }); $('#input-inventory').value=''; loadInventory(); });
 loadMenu(); loadShopping(); loadInventory();
 </script>
@@ -360,7 +445,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/inventory":
             self._json(200, data["inventory"])
         elif path == "/api/suggestions":
-            self._json(200, suggestions([i["name"] for i in data["inventory"]]))
+            self._json(200, suggestions([i["name"] for i in data["inventory"]], data))
+        elif path == "/api/recipes":
+            self._json(200, data["recipes"])
         else:
             self._json(404, {"error": "not found"})
 
@@ -377,14 +464,50 @@ class Handler(BaseHTTPRequestHandler):
                         entry = {"text": "", "persons": 2, "baby": ""}
                         data["menu"][day][meal] = entry
                     field = body.get("field", "text")
+                    matched = None
+                    added = 0
                     if field == "persons":
                         entry["persons"] = 3 if str(body.get("value")) == "3" else 2
                     elif field in ("text", "baby"):
                         entry[field] = str(body.get("value", ""))
+                        recipe = find_recipe(entry[field], all_recipes(data))
+                        if recipe:
+                            matched = recipe["name"]
+                            added = add_missing_to_shopping(data, recipe)
                     save_data(data)
-                    self._json(200, {"ok": True})
+                    self._json(200, {"ok": True, "matched": matched, "added": added})
                 else:
                     self._json(400, {"error": "invalid day/meal"})
+            elif path == "/api/menu/sync-shopping":
+                added = 0
+                matched = []
+                for day in DAYS:
+                    for meal in MEALS:
+                        entry = data["menu"].get(day, {}).get(meal)
+                        if not isinstance(entry, dict):
+                            continue
+                        for field in ("text", "baby"):
+                            recipe = find_recipe(entry.get(field, ""), all_recipes(data))
+                            if recipe:
+                                matched.append(recipe["name"])
+                                added += add_missing_to_shopping(data, recipe)
+                save_data(data)
+                self._json(200, {"added": added, "matched": matched})
+            elif path == "/api/recipes":
+                name = (body.get("name") or "").strip()
+                ingredients = body.get("ingredients") or []
+                if isinstance(ingredients, str):
+                    ingredients = [i.strip() for i in ingredients.split(",") if i.strip()]
+                if name and ingredients:
+                    data["recipes"].append({
+                        "id": uuid.uuid4().hex[:8],
+                        "name": name,
+                        "ingredients": ingredients,
+                        "child_friendly": bool(body.get("child_friendly")),
+                        "instructions": (body.get("instructions") or "").strip(),
+                    })
+                    save_data(data)
+                self._json(200, data["recipes"])
             elif path == "/api/shopping":
                 name = (body.get("name") or "").strip()
                 if name:
@@ -408,7 +531,7 @@ class Handler(BaseHTTPRequestHandler):
             elif path.startswith("/api/suggestions/") and path.endswith("/add-missing"):
                 recipe_id = path[len("/api/suggestions/") : -len("/add-missing")]
                 names = [i["name"] for i in data["inventory"]]
-                recipe = next((r for r in RECIPES if r["id"] == recipe_id), None)
+                recipe = next((r for r in all_recipes(data) if r["id"] == recipe_id), None)
                 if not recipe:
                     self._json(404, {"error": "recipe not found"})
                     return
@@ -437,6 +560,11 @@ class Handler(BaseHTTPRequestHandler):
             elif path.startswith("/api/inventory/"):
                 item_id = path[len("/api/inventory/") :]
                 data["inventory"] = [i for i in data["inventory"] if i["id"] != item_id]
+                save_data(data)
+                self._json(200, {"ok": True})
+            elif path.startswith("/api/recipes/"):
+                item_id = path[len("/api/recipes/") :]
+                data["recipes"] = [r for r in data["recipes"] if r["id"] != item_id]
                 save_data(data)
                 self._json(200, {"ok": True})
             else:

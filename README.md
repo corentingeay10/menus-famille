@@ -5,9 +5,13 @@ App web minimale, sans aucune dépendance externe (Python 3 standard uniquement)
 - planifier les **menus de la semaine** (midi / soir, lundi → dimanche) ;
 - gérer la **liste de courses** (ajouter, cocher, supprimer) ;
 - lister **ce qu'on a déjà à la maison** (inventaire) ;
+- indiquer pour chaque repas si on est **2 ou 3 (avec bébé)** à manger, avec un champ « repas bébé » quand on est 3 ;
 - obtenir des **suggestions de repas** selon l'inventaire, avec badge « adapté 18 mois »
   (textures molles, morceaux adaptés, peu salé) et possibilité d'ajouter d'un clic
-  les ingrédients manquants à la liste de courses.
+  les ingrédients manquants à la liste de courses ;
+- **générer automatiquement la liste de courses depuis le menu** : les ingrédients des
+  recettes reconnues dans les menus sont ajoutés, sauf s'ils sont déjà dans « Chez nous » ;
+- **ajouter ses propres recettes** (onglet Suggestions), en plus des recettes de base intégrées.
 
 Les données sont stockées dans `data.json` (créé automatiquement au premier lancement).
 
@@ -37,7 +41,10 @@ puis ouvrir sur iPad/iPhone : `http://192.168.1.42:8000`.
 | Méthode | Chemin | Rôle |
 |---|---|---|
 | GET | `/api/menu` | Lire le menu |
-| POST | `/api/menu` | `{day, meal, field, value}` : `field` = `text` (repas), `persons` (`2` ou `3`, 3 = avec bébé) ou `baby` (repas bébé) |
+| POST | `/api/menu` | `{day, meal, field, value}` : `field` = `text` (repas), `persons` (`2` ou `3`, 3 = avec bébé) ou `baby` (repas bébé). Si le texte correspond à une recette connue, ses ingrédients manquants sont ajoutés aux courses |
+| POST | `/api/menu/sync-shopping` | Ajoute aux courses les ingrédients de toutes les recettes reconnues dans le menu (hors inventaire) |
+| GET / POST | `/api/recipes` | Lire / ajouter une recette perso `{name, ingredients, child_friendly}` |
+| DELETE | `/api/recipes/{id}` | Supprimer une recette perso |
 | GET / POST | `/api/shopping` | Lire / ajouter un article |
 | POST | `/api/shopping/toggle` | `{id}` : cocher/décocher |
 | DELETE | `/api/shopping/{id}` | Supprimer un article |
