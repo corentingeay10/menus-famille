@@ -6,7 +6,7 @@ import threading
 import unicodedata
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(BASE_DIR, "data.json")
@@ -341,6 +341,8 @@ button.del { border:none; background:#fee2e2; color:#dc2626; font-size:.9rem; fo
 .recipe .missing-list { color:#dc2626; }
 .recipe button { margin-top:6px; }
 .qty { color:#b45309; font-size:.85rem; background:#fff3e0; border-radius:999px; padding:3px 10px; white-space:nowrap; font-weight:700; }
+.qty-input { width:80px; padding:7px 8px; border:2px solid var(--line); border-radius:999px; font-size:.85rem; text-align:center; font-family:inherit; font-weight:700; color:#b45309; background:#fff3e0; }
+.qty-input:focus { outline:none; border-color:var(--accent); }
 .empty { color:var(--muted); font-style:italic; padding:8px 0; }
 footer { text-align:center; color:var(--muted); font-size:.8rem; padding:16px; }
 </style>
@@ -358,6 +360,8 @@ footer { text-align:center; color:var(--muted); font-size:.8rem; padding:16px; }
 <section id="tab-courses" class="tab"><h2>Liste de courses</h2>
 <form class="add" id="form-shopping"><input id="input-shopping" placeholder="Ajouter un article…" required><button class="action" type="submit">Ajouter</button></form>
 <button type="button" class="action secondary" id="sync-shopping">🔄 Générer depuis le menu</button>
+<button type="button" class="action secondary" id="copy-shopping">📋 Copier la liste</button>
+<button type="button" class="action" id="clear-checked">✅ J'ai tout acheté</button>
 <p id="sync-status" class="empty"></p>
 <ul class="items" id="list-shopping"></ul></section>
 <section id="tab-inventaire" class="tab"><h2>Ce qu'on a déjà à la maison</h2>
@@ -371,6 +375,7 @@ footer { text-align:center; color:var(--muted); font-size:.8rem; padding:16px; }
 <button class="action" type="submit">Ajouter</button>
 </form>
 <ul class="items" id="list-recipes"></ul>
+<label style="display:flex;align-items:center;gap:8px;margin:4px 0 12px;font-weight:700;color:var(--muted)"><input type="checkbox" id="filter-baby" style="width:20px;height:20px"> 👶 Bébé mange avec nous (recettes adaptées 18 mois)</label>
 <div id="suggestions"></div></section>
 </main>
 <footer>Application familiale locale — données stockées sur cet appareil.</footer>
@@ -459,10 +464,11 @@ async function loadShopping() {
     <li class="${i.checked ? 'done' : ''}">
       <input type="checkbox" ${i.checked ? 'checked' : ''} data-id="${i.id}">
       <span class="name">${i.name}</span>
-      ${i.qty ? `<span class="qty">${i.qty}</span>` : ''}
+      <input class="qty-input" data-id="${i.id}" value="${esc(i.qty || '')}" placeholder="qté" title="Quantité (éditable)">
       <button class="del" data-id="${i.id}" title="Supprimer">✕</button>
     </li>`).join('') : '<p class="empty">Liste vide.</p>';
   document.querySelectorAll('#list-shopping input[type=checkbox]').forEach(c => c.addEventListener('change', () => api('/api/shopping/toggle', 'POST', { id: c.dataset.id })));
+  document.querySelectorAll('#list-shopping .qty-input').forEach(q => q.addEventListener('change', (e) => api('/api/shopping/qty', 'POST', { id: e.target.dataset.id, qty: e.target.value })));
   document.querySelectorAll('#list-shopping .del').forEach(b => b.addEventListener('click', async () => { await api('/api/shopping/' + b.dataset.id, 'DELETE'); loadShopping(); }));
 }
 async function loadInventory() {
@@ -473,7 +479,8 @@ async function loadInventory() {
   document.querySelectorAll('#list-inventory .del').forEach(b => b.addEventListener('click', async () => { await api('/api/inventory/' + b.dataset.id, 'DELETE'); loadInventory(); }));
 }
 async function loadSuggestions() {
-  const list = await api('/api/suggestions');
+  const baby = $('#filter-baby') && $('#filter-baby').checked ? '?baby=1' : '';
+  const list = await api('/api/suggestions' + baby);
   $('#suggestions').innerHTML = list.length ? list.map(r => `
     <div class="recipe">
       <h3>${r.name}${r.child_friendly ? '<span class="badge">👶 adapté 18 mois</span>' : ''}${r.missing_count === 0 ? '<span class="badge">✅ tout en stock</span>' : `<span class="badge missing">il manque ${r.missing_count}</span>`}</h3>
@@ -495,6 +502,25 @@ $('#sync-shopping').addEventListener('click', async () => {
   $('#sync-status').textContent = parts.length ? parts.join('. ') + '.' : 'Rien à ajouter : tout est déjà en stock ou listé.';
   loadShopping();
 });
+$('#clear-checked').addEventListener('click', async () => {
+  const r = await api('/api/shopping/clear-checked', 'POST', {});
+  $('#sync-status').textContent = r.removed > 0
+    ? `🧹 ${r.removed} article(s) coché(s) retiré(s), ${r.added_to_inventory} ajouté(s) à « Chez nous ».`
+    : 'Aucun article coché pour l’instant.';
+  loadShopping(); loadInventory();
+});
+$('#copy-shopping').addEventListener('click', async () => {
+  const items = await api('/api/shopping');
+  const lines = items.filter(i => !i.checked).map(i => `• ${i.name}${i.qty ? ' (' + i.qty + ')' : ''}`);
+  const text = '🛒 Liste de courses\\n' + (lines.length ? lines.join('\\n') : '(vide)');
+  try {
+    await navigator.clipboard.writeText(text);
+    $('#sync-status').textContent = '📋 Liste copiée dans le presse-papiers !';
+  } catch (err) {
+    $('#sync-status').textContent = text;
+  }
+});
+$('#filter-baby').addEventListener('change', () => loadSuggestions());
 $('#form-recipe').addEventListener('submit', async (e) => {
   e.preventDefault();
   await api('/api/recipes', 'POST', {
@@ -543,7 +569,8 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(length).decode("utf-8"))
 
     def do_GET(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/" or path == "/index.html":
             self._send(200, PAGE, "text/html; charset=utf-8")
             return
@@ -556,7 +583,13 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/inventory":
             self._json(200, data["inventory"])
         elif path == "/api/suggestions":
-            self._json(200, suggestions([i["name"] for i in data["inventory"]], data))
+            baby = parse_qs(parsed.query).get("baby", ["0"])[0] == "1"
+            sugg = suggestions([i["name"] for i in data["inventory"]], data)
+            if baby:
+                filtered = [s for s in sugg if s["child_friendly"]]
+                if filtered:
+                    sugg = filtered
+            self._json(200, sugg)
         elif path == "/api/recipes/all":
             self._json(200, all_recipes(data))
         elif path == "/api/recipes":
@@ -638,6 +671,26 @@ class Handler(BaseHTTPRequestHandler):
                 for item in data["shopping"]:
                     if item["id"] == body.get("id"):
                         item["checked"] = not item["checked"]
+                        save_data(data)
+                        self._json(200, {"ok": True})
+                        return
+                self._json(404, {"error": "not found"})
+            elif path == "/api/shopping/clear-checked":
+                checked = [s for s in data["shopping"] if s.get("checked")]
+                data["shopping"] = [s for s in data["shopping"] if not s.get("checked")]
+                inv_names = [i["name"] for i in data["inventory"]]
+                added_inv = 0
+                for s in checked:
+                    if not has_ingredient(inv_names, s["name"]):
+                        data["inventory"].append({"id": uuid.uuid4().hex[:8], "name": s["name"]})
+                        inv_names.append(s["name"])
+                        added_inv += 1
+                save_data(data)
+                self._json(200, {"removed": len(checked), "added_to_inventory": added_inv})
+            elif path == "/api/shopping/qty":
+                for item in data["shopping"]:
+                    if item["id"] == body.get("id"):
+                        item["qty"] = str(body.get("qty", ""))
                         save_data(data)
                         self._json(200, {"ok": True})
                         return

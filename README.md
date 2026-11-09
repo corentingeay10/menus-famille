@@ -14,6 +14,10 @@ App web minimale, sans aucune dépendance externe (Python 3 standard uniquement)
   avec une **quantité adaptée à 2 ou 3 personnes** (selon le réglage « avec bébé » du repas) ;
 - la liste de courses se **met à jour avec « Chez nous »** : ajouter un ingrédient à l'inventaire
   le retire des courses, et « Générer depuis le menu » nettoie aussi les articles désormais en stock ;
+- **« ✅ J'ai tout acheté »** : vide les articles cochés et les ajoute automatiquement à « Chez nous » ;
+- **quantités éditables** directement dans la liste de courses ;
+- **« 📋 Copier la liste »** : copie la liste des courses (texte) dans le presse-papiers pour l'envoyer ;
+- filtre **👶 recettes adaptées 18 mois** dans l'onglet Suggestions ;
 - **ajouter ses propres recettes** (onglet Suggestions), en plus des recettes de base intégrées.
 
 Les données sont stockées dans `data.json` (créé automatiquement au premier lancement).
@@ -45,7 +49,10 @@ puis ouvrir sur iPad/iPhone : `http://192.168.1.42:8000`.
 |---|---|---|
 | GET | `/api/menu` | Lire le menu |
 | POST | `/api/menu` | `{day, meal, field, value}` : `field` = `text` (repas), `persons` (`2` ou `3`, 3 = avec bébé) ou `baby` (repas bébé). Si le texte correspond à une recette connue, ses ingrédients manquants sont ajoutés aux courses |
-| POST | `/api/menu/sync-shopping` | Ajoute aux courses les ingrédients de toutes les recettes reconnues dans le menu (hors inventaire) |
+| POST | `/api/menu/sync-shopping` | Ajoute aux courses les ingrédients de toutes les recettes reconnues dans le menu (hors inventaire) et retire ceux désormais en stock |
+| POST | `/api/shopping/clear-checked` | Retire les articles cochés et les ajoute à l'inventaire |
+| POST | `/api/shopping/qty` | `{id, qty}` : modifie la quantité d'un article |
+| GET | `/api/suggestions?baby=1` | Suggestions filtrées aux recettes adaptées 18 mois |
 | GET | `/api/recipes/all` | Toutes les recettes (intégrées + perso) pour la liste déroulante du menu |
 | GET / POST | `/api/recipes` | Lire / ajouter une recette perso `{name, ingredients, child_friendly}` |
 | DELETE | `/api/recipes/{id}` | Supprimer une recette perso |
